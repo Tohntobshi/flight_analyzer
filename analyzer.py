@@ -135,25 +135,25 @@ def onkey_handler(event):
         plot_offset -= 1000
         print(f"plot offset {plot_offset}")
     if event.key == 'left':
-        frame_counter -= 30
+        frame_counter -= 60
     if event.key == 'right':
-        frame_counter += 30
+        frame_counter += 60
     if event.key == 'up':
         frame_counter -= 1
     if event.key == 'down':
         frame_counter += 1
 
 
-def get_ms_by_frame(n):  # video is supposed to be 30fps
-    return int(n / 3) * 100 + (n % 3) * 33
+def get_ms_by_frame(n):  # video is supposed to be 60fps
+    return int(n / 6) * 100 + (n % 6) * 16
 
 
 def get_plot_index(ms):
-    approx_index = int(ms / 33)
+    approx_index = int(ms / 11)
     approx_index = min(len(timestamps) - 1, max(0, approx_index))
-    while timestamps[approx_index] < ms - 16 and approx_index + 1 < len(timestamps):
+    while timestamps[approx_index] < ms - 8 and approx_index + 1 < len(timestamps):
         approx_index += 1
-    while timestamps[approx_index] - 16 > ms and approx_index - 1 >= 0:
+    while timestamps[approx_index] - 8 > ms and approx_index - 1 >= 0:
         approx_index -= 1
     return approx_index
 
@@ -258,6 +258,6 @@ def loop(i):
         frame_counter += 1
     return [text] + pitch_art + roll_art + height_art + yaw_art + pitch_roll_err_art + position_err_art + position_x_art + position_y_art
 
-ani = FuncAnimation(fig, loop, interval=33, blit=True)
+ani = FuncAnimation(fig, loop, interval=16, blit=True)
 
 plt.show()
