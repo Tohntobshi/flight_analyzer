@@ -4,11 +4,14 @@ import cv2 as cv
 import sys
 import numpy as np
 
-if len(sys.argv) != 4:
-    print('usage: analyzer.py <session_data> <session_video> <offset_ms>')
+if len(sys.argv) != 5:
+    print('usage: analyzer.py <session_data> <session_video> <fps> <offset_in_frames>')
     exit(1)
 
-_, data_file, video_file, offset = sys.argv
+_, data_file, video_file, fps, offset = sys.argv
+
+fps = int(fps)
+offset = int(offset)
 
 parsed_frames = []
 
@@ -49,12 +52,16 @@ parsed_position_x_err_ints = []
 parsed_position_y_err_ints = []
 
 with open(data_file) as f:
+    initial_time = 0
+    line_index = 0
     for line in f:
         time_ms, pitch_err, roll_err, pitch_err_der, roll_err_der, \
         height_err, height_err_der, yaw_err, yaw_err_der, \
         fl_mot, fr_mot, bl_mot, br_mot, freq, pitch_err_int, roll_err_int, yaw_err_int, height_err_int, \
         voltage, position_x_err, position_y_err, position_x_err_der, position_y_err_der, position_x_err_int, position_y_err_int = line.split(',')
-        parsed_timestamps.append(int(time_ms))
+        if line_index == 0:
+            initial_time = int(time_ms)
+        parsed_timestamps.append(int(time_ms) - initial_time)
         parsed_pitch_errors.append(float(pitch_err))
         parsed_roll_errors.append(float(roll_err))
         parsed_pitch_error_ders.append(float(pitch_err_der))
@@ -79,37 +86,101 @@ with open(data_file) as f:
         parsed_position_y_err_ders.append(float(position_y_err_der))
         parsed_position_x_err_ints.append(float(position_x_err_int))
         parsed_position_y_err_ints.append(float(position_y_err_int))
+        line_index += 1
 
-initial = parsed_timestamps[0]
-parsedTimeStamps = list(map(lambda x: x - initial, parsed_timestamps))
+normalized_timestamps = []
+normalized_pitch_errors = []
+normalized_roll_errors = []
+normalized_pitch_error_ders = []
+normalized_roll_error_ders = []
+normalized_height_errors = []
+normalized_height_error_ders = []
+normalized_yaw_errors = []
+normalized_yaw_error_ders = []
+normalized_fl_vals = []
+normalized_fr_vals = []
+normalized_bl_vals = []
+normalized_br_vals = []
+normalized_freq_vals = []
+normalized_pitch_err_ints = []
+normalized_roll_err_ints = []
+normalized_yaw_err_ints = []
+normalized_height_err_ints = []
+normalized_voltages = []
+normalized_position_x_errors = []
+normalized_position_y_errors = []
+normalized_position_x_err_ders = []
+normalized_position_y_err_ders = []
+normalized_position_x_err_ints = []
+normalized_position_y_err_ints = []
+
+for i in range((parsed_timestamps[len(parsed_timestamps) - 1] // 1000) * fps):
+    sec = i // fps
+    ms = int((i % fps) * (1000 / fps))
+    normalized_timestamp = sec * 1000 + ms
+    data_index = 0
+    last_delta = None
+    for ts in parsed_timestamps:
+        delta = abs(normalized_timestamp - ts)
+        if last_delta is not None and last_delta < delta:
+            break
+        last_delta = delta
+        data_index += 1
+    data_index -= 1
+    normalized_timestamps.append(normalized_timestamp)
+    normalized_pitch_errors.append(parsed_pitch_errors[data_index])
+    normalized_roll_errors.append(parsed_roll_errors[data_index])
+    normalized_pitch_error_ders.append(parsed_pitch_error_ders[data_index])
+    normalized_roll_error_ders.append(parsed_roll_error_ders[data_index])
+    normalized_height_errors.append(parsed_height_errors[data_index])
+    normalized_height_error_ders.append(parsed_height_error_ders[data_index])
+    normalized_yaw_errors.append(parsed_yaw_errors[data_index])
+    normalized_yaw_error_ders.append(parsed_yaw_error_ders[data_index])
+    normalized_fl_vals.append(parsed_fl_vals[data_index])
+    normalized_fr_vals.append(parsed_fr_vals[data_index])
+    normalized_bl_vals.append(parsed_bl_vals[data_index])
+    normalized_br_vals.append(parsed_br_vals[data_index])
+    normalized_freq_vals.append(parsed_freq_vals[data_index])
+    normalized_pitch_err_ints.append(parsed_pitch_err_ints[data_index])
+    normalized_roll_err_ints.append(parsed_roll_err_ints[data_index])
+    normalized_yaw_err_ints.append(parsed_yaw_err_ints[data_index])
+    normalized_height_err_ints.append(parsed_height_err_ints[data_index])
+    normalized_voltages.append(parsed_voltages[data_index])
+    normalized_position_x_errors.append(parsed_position_x_errors[data_index])
+    normalized_position_y_errors.append(parsed_position_y_errors[data_index])
+    normalized_position_x_err_ders.append(parsed_position_x_err_ders[data_index])
+    normalized_position_y_err_ders.append(parsed_position_y_err_ders[data_index])
+    normalized_position_x_err_ints.append(parsed_position_x_err_ints[data_index])
+    normalized_position_y_err_ints.append(parsed_position_y_err_ints[data_index])
+
 
 padding = np.zeros([50], dtype='float32')
 frames = np.array(parsed_frames)
-timestamps = np.array(parsedTimeStamps, dtype='int32')
-pitch_errors = np.concatenate((padding, np.array(parsed_pitch_errors, dtype='float32'), padding))
-roll_errors = np.concatenate((padding, np.array(parsed_roll_errors, dtype='float32'), padding))
-pitch_error_ders = np.concatenate((padding, np.array(parsed_pitch_error_ders, dtype='float32'), padding))
-roll_error_ders = np.concatenate((padding, np.array(parsed_roll_error_ders, dtype='float32'), padding))
-height_errors = np.concatenate((padding, np.array(parsed_height_errors, dtype='float32'), padding))
-height_error_ders = np.concatenate((padding, np.array(parsed_height_error_ders, dtype='float32'), padding))
-yaw_errors = np.concatenate((padding, np.array(parsed_yaw_errors, dtype='float32'), padding))
-yaw_error_ders = np.concatenate((padding, np.array(parsed_yaw_error_ders, dtype='float32'), padding))
-fl_vals = np.concatenate((padding, np.array(parsed_fl_vals, dtype='float32'), padding))
-fr_vals = np.concatenate((padding, np.array(parsed_fr_vals, dtype='float32'), padding))
-bl_vals = np.concatenate((padding, np.array(parsed_bl_vals, dtype='float32'), padding))
-br_vals = np.concatenate((padding, np.array(parsed_br_vals, dtype='float32'), padding))
-freq_vals = np.concatenate((padding, np.array(parsed_freq_vals, dtype='float32'), padding))
-pitch_err_ints = np.concatenate((padding, np.array(parsed_pitch_err_ints, dtype='float32'), padding))
-roll_err_ints = np.concatenate((padding, np.array(parsed_roll_err_ints, dtype='float32'), padding))
-yaw_err_ints = np.concatenate((padding, np.array(parsed_yaw_err_ints, dtype='float32'), padding))
-height_err_ints = np.concatenate((padding, np.array(parsed_height_err_ints, dtype='float32'), padding))
-voltages = np.concatenate((padding, np.array(parsed_voltages, dtype='float32'), padding))
-position_x_errors = np.concatenate((padding, np.array(parsed_position_x_errors, dtype='float32'), padding))
-position_y_errors = np.concatenate((padding, np.array(parsed_position_y_errors, dtype='float32'), padding))
-position_x_err_ders = np.concatenate((padding, np.array(parsed_position_x_err_ders, dtype='float32'), padding))
-position_y_err_ders = np.concatenate((padding, np.array(parsed_position_y_err_ders, dtype='float32'), padding))
-position_x_err_ints = np.concatenate((padding, np.array(parsed_position_x_err_ints, dtype='float32'), padding))
-position_y_err_ints = np.concatenate((padding, np.array(parsed_position_y_err_ints, dtype='float32'), padding))
+timestamps = np.array(normalized_timestamps, dtype='int32')
+pitch_errors = np.concatenate((padding, np.array(normalized_pitch_errors, dtype='float32'), padding))
+roll_errors = np.concatenate((padding, np.array(normalized_roll_errors, dtype='float32'), padding))
+pitch_error_ders = np.concatenate((padding, np.array(normalized_pitch_error_ders, dtype='float32'), padding))
+roll_error_ders = np.concatenate((padding, np.array(normalized_roll_error_ders, dtype='float32'), padding))
+height_errors = np.concatenate((padding, np.array(normalized_height_errors, dtype='float32'), padding))
+height_error_ders = np.concatenate((padding, np.array(normalized_height_error_ders, dtype='float32'), padding))
+yaw_errors = np.concatenate((padding, np.array(normalized_yaw_errors, dtype='float32'), padding))
+yaw_error_ders = np.concatenate((padding, np.array(normalized_yaw_error_ders, dtype='float32'), padding))
+fl_vals = np.concatenate((padding, np.array(normalized_fl_vals, dtype='float32'), padding))
+fr_vals = np.concatenate((padding, np.array(normalized_fr_vals, dtype='float32'), padding))
+bl_vals = np.concatenate((padding, np.array(normalized_bl_vals, dtype='float32'), padding))
+br_vals = np.concatenate((padding, np.array(normalized_br_vals, dtype='float32'), padding))
+freq_vals = np.concatenate((padding, np.array(normalized_freq_vals, dtype='float32'), padding))
+pitch_err_ints = np.concatenate((padding, np.array(normalized_pitch_err_ints, dtype='float32'), padding))
+roll_err_ints = np.concatenate((padding, np.array(normalized_roll_err_ints, dtype='float32'), padding))
+yaw_err_ints = np.concatenate((padding, np.array(normalized_yaw_err_ints, dtype='float32'), padding))
+height_err_ints = np.concatenate((padding, np.array(normalized_height_err_ints, dtype='float32'), padding))
+voltages = np.concatenate((padding, np.array(normalized_voltages, dtype='float32'), padding))
+position_x_errors = np.concatenate((padding, np.array(normalized_position_x_errors, dtype='float32'), padding))
+position_y_errors = np.concatenate((padding, np.array(normalized_position_y_errors, dtype='float32'), padding))
+position_x_err_ders = np.concatenate((padding, np.array(normalized_position_x_err_ders, dtype='float32'), padding))
+position_y_err_ders = np.concatenate((padding, np.array(normalized_position_y_err_ders, dtype='float32'), padding))
+position_x_err_ints = np.concatenate((padding, np.array(normalized_position_x_err_ints, dtype='float32'), padding))
+position_y_err_ints = np.concatenate((padding, np.array(normalized_position_y_err_ints, dtype='float32'), padding))
 
 fig, ((ax_1, ax_2), (ax_3, ax_4), (ax_5, ax_6), (ax_7, ax_8), (ax_9, ax_10)) = plt.subplots(nrows=5, ncols=2)
 
@@ -123,21 +194,21 @@ def onkey_handler(event):
     if event.key == ' ':
         pause = not pause
     if event.key == 'b':
-        plot_offset += 1000
+        plot_offset += fps
         print(f"plot offset {plot_offset}")
     if event.key == 'v':
-        plot_offset += 10
+        plot_offset += 1
         print(f"plot offset {plot_offset}")
     if event.key == 'c':
-        plot_offset -= 10
+        plot_offset -= 1
         print(f"plot offset {plot_offset}")
     if event.key == 'x':
-        plot_offset -= 1000
+        plot_offset -= fps
         print(f"plot offset {plot_offset}")
     if event.key == 'left':
-        frame_counter -= 60
+        frame_counter -= fps
     if event.key == 'right':
-        frame_counter += 60
+        frame_counter += fps
     if event.key == 'up':
         frame_counter -= 1
     if event.key == 'down':
@@ -145,17 +216,8 @@ def onkey_handler(event):
 
 
 def get_ms_by_frame(n):  # video is supposed to be 60fps
-    return int(n / 6) * 100 + (n % 6) * 16
+    return n // fps * 1000 + int((n % fps) * 1000 / fps)
 
-
-def get_plot_index(ms):
-    approx_index = int(ms / 11)
-    approx_index = min(len(timestamps) - 1, max(0, approx_index))
-    while timestamps[approx_index] < ms - 8 and approx_index + 1 < len(timestamps):
-        approx_index += 1
-    while timestamps[approx_index] - 8 > ms and approx_index - 1 >= 0:
-        approx_index -= 1
-    return approx_index
 
 
 fig.canvas.mpl_connect("key_press_event", onkey_handler)
@@ -233,7 +295,7 @@ position_err_art = prepare_point(ax_10, 5, "position error")
 def loop(i):
     global frame_counter, plot_offset, pause, frames, timestamps
     video_ms = get_ms_by_frame(frame_counter)
-    plot_index = get_plot_index(video_ms - plot_offset)
+    plot_index = frame_counter - plot_offset
     if frame_counter >= 0 and frame_counter < len(frames):
         cv.imshow("Video", frames[frame_counter])
     else:
@@ -243,7 +305,7 @@ def loop(i):
     current_index = plot_index + 50
     end_index = plot_index + 100
 
-    text = ax_2.text(0, 0.5, f"plot offset {plot_offset}ms\ntime {video_ms}ms\nfl {fl_vals[current_index]} fr {fr_vals[current_index]}\nbl {bl_vals[current_index]} br {br_vals[current_index]}")
+    text = ax_2.text(0, 0.5, f"plot offset {plot_offset} frames\ntime {video_ms}ms\nfl {fl_vals[current_index]} fr {fr_vals[current_index]}\nbl {bl_vals[current_index]} br {br_vals[current_index]}")
 
     update_2_vals_plot(pitch_art, pitch_errors[start_index:end_index], pitch_error_ders[start_index:end_index], "v {:.2f} d {:.2f}\ni {:.2f}".format(pitch_errors[current_index], pitch_error_ders[current_index], pitch_err_ints[current_index]))
     update_2_vals_plot(roll_art, roll_errors[start_index:end_index], roll_error_ders[start_index:end_index], "v {:.2f} d {:.2f}\ni {:.2f}".format(roll_errors[current_index], roll_error_ders[current_index], roll_err_ints[current_index]))
